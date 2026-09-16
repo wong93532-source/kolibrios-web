@@ -56,11 +56,8 @@
     .log-info { color: #00aaff; }
   </style>
 
-  <!-- 动态监视 libv86.js 加载状态 -->
-  <script>
-    window.v86Loaded = false;
-  </script>
-  <script src="https://copy.sh/v86/build/libv86.js" onload="window.v86Loaded = true;" onerror="window.v86LoadError = true;"></script>
+  <!-- 改用 CDNJS / jsDelivr 的稳定公网 CDN，解决网络拦截与跨域问题 -->
+  <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
 </head>
 <body>
 
@@ -88,49 +85,47 @@
       logOutput.scrollTop = logOutput.scrollHeight;
     }
 
-    // 检查并等待 V86Starter 载入
-    function startEmulator() {
-      if (window.v86LoadError) {
-        log("libv86.js 加载失败！请检查网络或是否开启了广告拦截插件 (AdBlocker)。", "error");
-        return;
-      }
-
+    function initV86() {
       if (typeof V86Starter === "undefined") {
-        log("等待 v86 核心库加载中...", "info");
-        setTimeout(startEmulator, 300); // 每 300ms 检查一次
+        log("CDN 核心库 (libv86.js) 被浏览器拦截或加载超时！", "error");
+        log("请尝试关闭广告拦截插件 (AdBlock/uBlock) 或更换网络尝试。", "error");
         return;
       }
 
-      log("v86 核心库加载完成，开始启动虚拟机...", "info");
+      log("核心库就绪，开始向 v86 载入 BIOS 及镜像...", "info");
+
       try {
         var emulator = new V86Starter({
-          wasm_path: "https://copy.sh/v86/build/v86.wasm",
+          // 全部使用 jsDelivr 全球加速 CDN 的依赖项
+          wasm_path: "https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm",
+          bios: { url: "https://cdn.jsdelivr.net/npm/v86@latest/bios/seabios.bin" },
+          vga_bios: { url: "https://cdn.jsdelivr.net/npm/v86@latest/bios/vgabios.bin" },
+          
           memory_size: 64 * 1024 * 1024,
           vga_memory_size: 8 * 1024 * 1024,
           screen_container: document.getElementById("screen_container"),
-          bios: { url: "https://copy.sh/v86/bios/seabios.bin" },
-          vga_bios: { url: "https://copy.sh/v86/bios/vgabios.bin" },
-          fda: { url: "./kolibri.img" },
+          fda: { url: "./kolibri.img" }, // 挂载你的软盘镜像
           autostart: true,
         });
-        log("KolibriOS 已成功引导！", "info");
+
+        log("KolibriOS 启动指令已发送！", "info");
       } catch (e) {
-        log("模拟器启动异常: " + e.message, "error");
+        log("初始化崩溃: " + e.message, "error");
       }
     }
 
     window.onload = function() {
-      log("检测镜像文件...", "info");
+      log("检测本地 kolibri.img 镜像...", "info");
       fetch("./kolibri.img", { method: "HEAD" })
         .then(res => {
           if (!res.ok) {
-            log(`镜像文件读取失败 (HTTP ${res.status})`, "error");
+            log(`镜像文件读取失败 (HTTP ${res.status})，请确认 kolibri.img 已提交到 GitHub。`, "error");
           } else {
-            log("镜像文件检测正常！", "info");
-            startEmulator();
+            log("kolibri.img 检测通过！", "info");
+            initV86();
           }
         })
-        .catch(err => log("网络错误: " + err.message, "error"));
+        .catch(err => log("网络检测异常: " + err.message, "error"));
     };
   </script>
 
