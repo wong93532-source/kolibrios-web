@@ -8,7 +8,7 @@
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      padding: 10px;
+      padding: 15px;
       background-color: #121212;
       color: #e0e0e0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
@@ -16,14 +16,8 @@
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
-      touch-action: manipulation;
     }
-    h1 { 
-      margin: 5px 0 10px 0; 
-      font-size: 1.3rem; 
-      color: #4da6ff; 
-      text-align: center;
-    }
+    h1 { margin: 5px 0 10px 0; font-size: 1.3rem; color: #4da6ff; text-align: center; }
     #screen_container {
       box-shadow: 0 10px 30px rgba(0,0,0,0.8);
       border: 2px solid #333;
@@ -34,11 +28,7 @@
       margin-bottom: 12px;
       max-width: 100%;
     }
-    canvas { 
-      display: block; 
-      max-width: 100%; 
-      height: auto; 
-    }
+    canvas { display: block; max-width: 100%; height: auto; }
     
     #log_container {
       width: 100%;
@@ -48,27 +38,14 @@
       border-radius: 6px;
       padding: 10px;
     }
-    #log_title {
-      font-size: 0.75rem;
-      color: #666;
-      margin-bottom: 5px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-    #log_output {
-      height: 110px;
-      overflow-y: auto;
-      font-size: 0.75rem;
-      color: #00ff66;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
+    #log_title { font-size: 0.75rem; color: #666; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
+    #log_output { height: 120px; overflow-y: auto; font-size: 0.75rem; color: #00ff66; white-space: pre-wrap; word-break: break-all; }
     .log-err { color: #ff5555; }
     .log-info { color: #00aaff; }
     .log-ok { color: #00ff66; }
   </style>
 
-  <!-- 引用本地仓库目录下的 libv86.js -->
+  <!-- 尝试普通脚本方式导入 -->
   <script src="./libv86.js"></script>
 </head>
 <body>
@@ -98,10 +75,9 @@
       logOutput.scrollTop = logOutput.scrollHeight;
     }
 
-    // 校验所有依赖文件是否均在根目录成功就位
     async function checkFiles() {
       const files = ["./libv86.js", "./v86.wasm", "./seabios.bin", "./vgabios.bin", "./kolibri.img"];
-      log("开始全面校验本地依赖文件...", "info");
+      log("开始校验本地依赖文件...", "info");
 
       for (const file of files) {
         try {
@@ -119,16 +95,30 @@
       return true;
     }
 
-    function startV86() {
-      if (typeof V86Starter === "undefined") {
-        log("未检测到 V86Starter，请确认 libv86.js 内容完整且无语法报错！", "error");
+    async function startV86() {
+      let Starter = window.V86Starter;
+
+      // 如果普通方式没拿到了，尝试用 ES Module 动态导入
+      if (!Starter) {
+        log("未在全局找到 V86Starter，尝试作为 ES Module 模块加载...", "info");
+        try {
+          const mod = await import("./libv86.js");
+          Starter = mod.V86Starter || mod.default;
+        } catch (err) {
+          log("动态导入失败: " + err.message, "error");
+        }
+      }
+
+      if (!Starter) {
+        log("【错误】无法解析 V86Starter！可能是 libv86.js 文件损坏或复制不全。", "error");
+        log("请重新上传官方正确的 libv86.js 文件。", "error");
         return;
       }
 
-      log("启动 v86 虚拟机中...", "info");
+      log("V86Starter 引擎就绪，启动虚拟机...", "ok");
 
       try {
-        var emulator = new V86Starter({
+        var emulator = new Starter({
           wasm_path: "./v86.wasm",
           bios: { url: "./seabios.bin" },
           vga_bios: { url: "./vgabios.bin" },
@@ -140,7 +130,7 @@
           autostart: true,
         });
 
-        log("KolibriOS 开机引导指令已发送！", "ok");
+        log("KolibriOS 启动成功！", "ok");
       } catch (e) {
         log("虚拟机崩溃: " + e.message, "error");
       }
@@ -150,8 +140,6 @@
       const ready = await checkFiles();
       if (ready) {
         startV86();
-      } else {
-        log("启动终止：请检查仓库中是否漏传了上述报错的文件。", "error");
       }
     };
   </script>
