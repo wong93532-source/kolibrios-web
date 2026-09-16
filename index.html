@@ -2,13 +2,13 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>KolibriOS Web Edition</title>
   <style>
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      padding: 15px;
+      padding: 10px;
       background-color: #121212;
       color: #e0e0e0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
@@ -16,8 +16,14 @@
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
+      touch-action: manipulation;
     }
-    h1 { margin: 5px 0; font-size: 1.4rem; color: #4da6ff; }
+    h1 { 
+      margin: 5px 0 10px 0; 
+      font-size: 1.3rem; 
+      color: #4da6ff; 
+      text-align: center;
+    }
     #screen_container {
       box-shadow: 0 10px 30px rgba(0,0,0,0.8);
       border: 2px solid #333;
@@ -25,9 +31,14 @@
       overflow: hidden;
       background: #000;
       line-height: 0;
-      margin-bottom: 15px;
+      margin-bottom: 12px;
+      max-width: 100%;
     }
-    canvas { display: block; }
+    canvas { 
+      display: block; 
+      max-width: 100%; 
+      height: auto; 
+    }
     
     #log_container {
       width: 100%;
@@ -38,14 +49,14 @@
       padding: 10px;
     }
     #log_title {
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       color: #666;
       margin-bottom: 5px;
       text-transform: uppercase;
       letter-spacing: 1px;
     }
     #log_output {
-      height: 120px;
+      height: 110px;
       overflow-y: auto;
       font-size: 0.75rem;
       color: #00ff66;
@@ -54,10 +65,11 @@
     }
     .log-err { color: #ff5555; }
     .log-info { color: #00aaff; }
+    .log-ok { color: #00ff66; }
   </style>
 
-  <!-- 改用 CDNJS / jsDelivr 的稳定公网 CDN，解决网络拦截与跨域问题 -->
-  <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
+  <!-- 引用本地仓库目录下的 libv86.js -->
+  <script src="./libv86.js"></script>
 </head>
 <body>
 
@@ -80,52 +92,67 @@
       const div = document.createElement("div");
       if (type === "error") div.className = "log-err";
       if (type === "info") div.className = "log-info";
+      if (type === "ok") div.className = "log-ok";
       div.textContent = `[${time}] ${msg}`;
       logOutput.appendChild(div);
       logOutput.scrollTop = logOutput.scrollHeight;
     }
 
-    function initV86() {
+    // 校验所有依赖文件是否均在根目录成功就位
+    async function checkFiles() {
+      const files = ["./libv86.js", "./v86.wasm", "./seabios.bin", "./vgabios.bin", "./kolibri.img"];
+      log("开始全面校验本地依赖文件...", "info");
+
+      for (const file of files) {
+        try {
+          const res = await fetch(file, { method: "HEAD" });
+          if (!res.ok) {
+            log(`缺失文件: ${file} (HTTP ${res.status})`, "error");
+            return false;
+          }
+        } catch (e) {
+          log(`无法读取文件: ${file}`, "error");
+          return false;
+        }
+      }
+      log("所有 5 个本地依赖文件检测通过！", "ok");
+      return true;
+    }
+
+    function startV86() {
       if (typeof V86Starter === "undefined") {
-        log("CDN 核心库 (libv86.js) 被浏览器拦截或加载超时！", "error");
-        log("请尝试关闭广告拦截插件 (AdBlock/uBlock) 或更换网络尝试。", "error");
+        log("未检测到 V86Starter，请确认 libv86.js 内容完整且无语法报错！", "error");
         return;
       }
 
-      log("核心库就绪，开始向 v86 载入 BIOS 及镜像...", "info");
+      log("启动 v86 虚拟机中...", "info");
 
       try {
         var emulator = new V86Starter({
-          // 全部使用 jsDelivr 全球加速 CDN 的依赖项
-          wasm_path: "https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm",
-          bios: { url: "https://cdn.jsdelivr.net/npm/v86@latest/bios/seabios.bin" },
-          vga_bios: { url: "https://cdn.jsdelivr.net/npm/v86@latest/bios/vgabios.bin" },
+          wasm_path: "./v86.wasm",
+          bios: { url: "./seabios.bin" },
+          vga_bios: { url: "./vgabios.bin" },
+          fda: { url: "./kolibri.img" },
           
           memory_size: 64 * 1024 * 1024,
           vga_memory_size: 8 * 1024 * 1024,
           screen_container: document.getElementById("screen_container"),
-          fda: { url: "./kolibri.img" }, // 挂载你的软盘镜像
           autostart: true,
         });
 
-        log("KolibriOS 启动指令已发送！", "info");
+        log("KolibriOS 开机引导指令已发送！", "ok");
       } catch (e) {
-        log("初始化崩溃: " + e.message, "error");
+        log("虚拟机崩溃: " + e.message, "error");
       }
     }
 
-    window.onload = function() {
-      log("检测本地 kolibri.img 镜像...", "info");
-      fetch("./kolibri.img", { method: "HEAD" })
-        .then(res => {
-          if (!res.ok) {
-            log(`镜像文件读取失败 (HTTP ${res.status})，请确认 kolibri.img 已提交到 GitHub。`, "error");
-          } else {
-            log("kolibri.img 检测通过！", "info");
-            initV86();
-          }
-        })
-        .catch(err => log("网络检测异常: " + err.message, "error"));
+    window.onload = async function() {
+      const ready = await checkFiles();
+      if (ready) {
+        startV86();
+      } else {
+        log("启动终止：请检查仓库中是否漏传了上述报错的文件。", "error");
+      }
     };
   </script>
 
