@@ -58,8 +58,7 @@
     <div id="log_output"></div>
   </div>
 
-  <!-- 使用 ES6 Module 方式导入 -->
-  <script type="module">
+  <script>
     const logOutput = document.getElementById("log_output");
 
     function log(msg, type = "normal") {
@@ -71,6 +70,17 @@
       div.textContent = `[${time}] ${msg}`;
       logOutput.appendChild(div);
       logOutput.scrollTop = logOutput.scrollHeight;
+    }
+
+    // 动态加载外部 JavaScript 脚本
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = src;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error(`无法加载脚本: ${src}`));
+        document.head.appendChild(s);
+      });
     }
 
     async function checkFiles() {
@@ -97,33 +107,33 @@
       const ready = await checkFiles();
       if (!ready) return;
 
-      log("正在通过 ES Module 方式导入 v86 引擎...", "info");
-      
-      let V86Starter;
+      log("正在载入 v86 引擎脚本...", "info");
+
+      // 优先加载本地 libv86.js，失败则自动切换至 NPM 镜像
       try {
-        // 优先优先从本地 libv86.js 导入
-        const mod = await import("./libv86.js");
-        V86Starter = mod.V86Starter || mod.default;
+        await loadScript("./libv86.js");
       } catch (e1) {
-        log("本地 libv86.js 解析失败，尝试在线 ES 模块备用源...", "info");
+        log("本地 libv86.js 加载失败，尝试备用网络源...", "info");
         try {
-          const mod = await import("https://unpkg.com/v86@latest/build/libv86.js");
-          V86Starter = mod.V86Starter || mod.default;
+          await loadScript("https://unpkg.com/v86@latest/build/libv86.js");
         } catch (e2) {
-          log("引擎导入彻底失败: " + e2.message, "error");
+          log("引擎脚本载入彻底失败！", "error");
           return;
         }
       }
 
-      if (!V86Starter) {
-        log("无法提取 V86Starter 导出项！", "error");
+      // 提取全局对象
+      const Starter = window.V86Starter || (window.v86 && window.v86.V86Starter);
+
+      if (!Starter) {
+        log("无法在 window 全局空间定位 V86Starter，请确认 libv86.js 是否完整！", "error");
         return;
       }
 
-      log("V86Starter 模块载入成功，启动虚拟机...", "ok");
+      log("V86Starter 引擎加载成功，开始引导虚拟机...", "ok");
 
       try {
-        const emulator = new V86Starter({
+        const emulator = new Starter({
           wasm_path: "./v86.wasm",
           bios: { url: "./seabios.bin" },
           vga_bios: { url: "./vgabios.bin" },
@@ -135,9 +145,9 @@
           autostart: true,
         });
 
-        log("KolibriOS 启动成功！正在渲染画面...", "ok");
+        log("KolibriOS 启动命令已发送，正在渲染开机画面...", "ok");
       } catch (err) {
-        log("虚拟机初始化崩溃: " + err.message, "error");
+        log("虚拟机崩溃: " + err.message, "error");
       }
     }
 
