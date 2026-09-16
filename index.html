@@ -29,7 +29,6 @@
     }
     canvas { display: block; }
     
-    /* 日志面板样式 */
     #log_container {
       width: 100%;
       max-width: 640px;
@@ -56,23 +55,26 @@
     .log-err { color: #ff5555; }
     .log-info { color: #00aaff; }
   </style>
+
+  <!-- 动态监视 libv86.js 加载状态 -->
+  <script>
+    window.v86Loaded = false;
+  </script>
+  <script src="https://copy.sh/v86/build/libv86.js" onload="window.v86Loaded = true;" onerror="window.v86LoadError = true;"></script>
 </head>
 <body>
 
   <h1>KolibriOS 网页运行版</h1>
 
-  <!-- 模拟器屏幕容器 -->
   <div id="screen_container">
     <canvas id="screen"></canvas>
   </div>
 
-  <!-- 日志输出控制台 -->
   <div id="log_container">
     <div id="log_title">系统运行日志 (Runtime Log)</div>
     <div id="log_output"></div>
   </div>
 
-  <script src="https://copy.sh/v86/build/libv86.js"></script>
   <script>
     const logOutput = document.getElementById("log_output");
 
@@ -86,21 +88,20 @@
       logOutput.scrollTop = logOutput.scrollHeight;
     }
 
-    window.onload = function() {
-      log("开始初始化 v86 模拟器...", "info");
+    // 检查并等待 V86Starter 载入
+    function startEmulator() {
+      if (window.v86LoadError) {
+        log("libv86.js 加载失败！请检查网络或是否开启了广告拦截插件 (AdBlocker)。", "error");
+        return;
+      }
 
-      // 预先拦截 fetch 检测镜像是否存在
-      fetch("./kolibri.img", { method: "HEAD" })
-        .then(res => {
-          if (!res.ok) {
-            log(`镜像请求失败！HTTP 状态码: ${res.status} (${res.statusText})`, "error");
-            log("请检查仓库根目录中是否存在 kolibri.img 文件，且文件名全为小写。", "error");
-          } else {
-            log("成功找到 kolibri.img 镜像文件，正在启动 BIOS 载入...", "info");
-          }
-        })
-        .catch(err => log("网络错误或跨域拦截: " + err.message, "error"));
+      if (typeof V86Starter === "undefined") {
+        log("等待 v86 核心库加载中...", "info");
+        setTimeout(startEmulator, 300); // 每 300ms 检查一次
+        return;
+      }
 
+      log("v86 核心库加载完成，开始启动虚拟机...", "info");
       try {
         var emulator = new V86Starter({
           wasm_path: "https://copy.sh/v86/build/v86.wasm",
@@ -112,15 +113,24 @@
           fda: { url: "./kolibri.img" },
           autostart: true,
         });
-
-        // 监听虚拟串口输出日志
-        emulator.add_listener("serial0-output-char", function(char) {
-          // 可选：将虚拟机内部输出转存至日志面板
-        });
-
+        log("KolibriOS 已成功引导！", "info");
       } catch (e) {
-        log("模拟器崩溃: " + e.message, "error");
+        log("模拟器启动异常: " + e.message, "error");
       }
+    }
+
+    window.onload = function() {
+      log("检测镜像文件...", "info");
+      fetch("./kolibri.img", { method: "HEAD" })
+        .then(res => {
+          if (!res.ok) {
+            log(`镜像文件读取失败 (HTTP ${res.status})`, "error");
+          } else {
+            log("镜像文件检测正常！", "info");
+            startEmulator();
+          }
+        })
+        .catch(err => log("网络错误: " + err.message, "error"));
     };
   </script>
 
