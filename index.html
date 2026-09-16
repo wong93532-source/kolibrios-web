@@ -2,10 +2,10 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>KolibriOS Web Edition</title>
   <style>
-    * { box-sizing: border-box; touch-action: manipulation; }
+    * { box-sizing: border-box; touch-action: none; }
     body {
       margin: 0;
       padding: 10px;
@@ -36,14 +36,14 @@
       height: 100% !important;
     }
 
-    /* 手机端触控辅助控制板 */
     #touch_controls {
       width: 100%;
       max-width: 800px;
       margin-top: 10px;
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 8px;
+      touch-action: auto;
     }
     .touch-btn {
       background: #222;
@@ -55,7 +55,6 @@
       border-radius: 6px;
       text-align: center;
       cursor: pointer;
-      active-background: #00aaff;
     }
     .touch-btn:active {
       background: #00aaff;
@@ -70,9 +69,10 @@
       border-radius: 6px;
       padding: 8px;
       margin-top: 10px;
+      touch-action: auto;
     }
     #log_title { font-size: 0.7rem; color: #666; margin-bottom: 4px; text-transform: uppercase; }
-    #log_output { height: 70px; overflow-y: auto; font-size: 0.7rem; color: #00ff66; white-space: pre-wrap; word-break: break-all; }
+    #log_output { height: 60px; overflow-y: auto; font-size: 0.7rem; color: #00ff66; white-space: pre-wrap; word-break: break-all; }
     .log-err { color: #ff5555; }
     .log-info { color: #00aaff; }
     .log-ok { color: #00ff66; }
@@ -80,17 +80,15 @@
 </head>
 <body>
 
-  <h1>KolibriOS 网页触控增强版</h1>
+  <h1>KolibriOS 触控修复版</h1>
 
   <div id="screen_container">
     <div style="white-space: pre; font-family: monospace; line-height: 14px; font-size: 13px; color: #aaa;"></div>
     <canvas></canvas>
   </div>
 
-  <!-- 手机辅助按键区 -->
   <div id="touch_controls">
-    <button class="touch-btn" id="btn_click">🖱️ 点击(左键)</button>
-    <button class="touch-btn" id="btn_dblclick">⚡ 双击打开</button>
+    <button class="touch-btn" id="btn_mode">👆 单击模式</button>
     <button class="touch-btn" id="btn_rclick">🔘 鼠标右键</button>
     <button class="touch-btn" id="btn_kbd">⌨️ 呼出键盘</button>
   </div>
@@ -103,6 +101,7 @@
   <script type="module">
     const logOutput = document.getElementById("log_output");
     let emulator = null;
+    let isDoubleClickMode = true; // 默认触控屏幕直接执行双击
 
     function log(msg, type = "normal") {
       const time = new Date().toLocaleTimeString();
@@ -140,8 +139,8 @@
         });
 
         emulator.add_listener("emulator-ready", function() {
-          log("WASM 核心就绪，触控增强已激活！", "ok");
-          bindTouchEvents();
+          log("WASM 核心就绪！已启用点击精确定位", "ok");
+          setupPointerBridge();
         });
 
       } catch (err) {
@@ -149,52 +148,72 @@
       }
     }
 
-    // 将屏幕触摸事件准确映射为鼠标指针和按键操作
-    function bindTouchEvents() {
-      const screen = document.getElementById("screen_container");
+    // 建立真正的硬件指针桥接
+    function setupPointerBridge() {
+      const container = document.getElementById("screen_container");
 
-      // 手指轻触屏幕 = 移动鼠标并点击
-      screen.addEventListener("touchend", function(e) {
+      // 单击/双击模式切换
+      const btnMode = document.getElementById("btn_mode");
+      btnMode.onclick = () => {
+        isDoubleClickMode = !isDoubleClickMode;
+        btnMode.textContent = isDoubleClickMode ? "⚡ 双击模式 (默认)" : "👆 单击模式";
+        log(`点击模式切换为: ${isDoubleClickMode ? "双击打开图标" : "普通单击"}`, "info");
+      };
+
+      // 发送完整 MouseClick 事件 (按下 + 释放)
+      function sendCompleteClick(x, y, button = 0) {
         if (!emulator) return;
         
-        // 阻止默认滚动行为
-        e.preventDefault();
+        // 1. 坐标归一化并移动指针
+        emulator.mouse_move(x, y);
 
-        // 模拟单击左键
-        emulator.mouse_send_click(0);
-      }, { passive: false });
+        // 2. 模拟真实物理按键的 Press 与 Release 周期
+        emulator.mouse_send_click(button);
 
-      // 按键绑定：单击左键
-      document.getElementById("btn_click").onclick = () => {
-        if (emulator) emulator.mouse_send_click(0);
-      };
-
-      // 按键绑定：双击打开应用/图标
-      document.getElementById("btn_dblclick").onclick = () => {
-        if (emulator) {
-          emulator.mouse_send_click(0);
-          setTimeout(() => emulator.mouse_send_click(0), 100);
+        // 如果是双击模式，120ms 后追加第二次完整点击
+        if (isDoubleClickMode && button === 0) {
+          setTimeout(() => {
+            emulator.mouse_send_click(0);
+          }, 120);
         }
-      };
+      }
 
-      // 按键绑定：鼠标右键
+      // 监听触摸/指针点按
+      container.addEventListener("pointerdown", function(e) {
+        e.preventDefault();
+        
+        const rect = container.getBoundingClientRect();
+        // 计算映射到虚拟机 1024x768 或 800x600 像素坐标系上的 X/Y
+        const scaleX = 800 / rect.width;
+        const scaleY = 600 / rect.height;
+        const canvasX = Math.round((e.clientX - rect.left) * scaleX);
+        const canvasY = Math.round((e.clientY - rect.top) * scaleY);
+
+        sendCompleteClick(canvasX, canvasY, 0);
+      });
+
+      // 右键按钮
       document.getElementById("btn_rclick").onclick = () => {
-        if (emulator) emulator.mouse_send_click(2);
+        log("等待点击屏幕位置以唤出右键菜单...", "info");
+        const handler = (e) => {
+          const rect = container.getBoundingClientRect();
+          const canvasX = Math.round((e.clientX - rect.left) * (800 / rect.width));
+          const canvasY = Math.round((e.clientY - rect.top) * (800 / rect.height));
+          sendCompleteClick(canvasX, canvasY, 2);
+          container.removeEventListener("pointerdown", handler, true);
+        };
+        container.addEventListener("pointerdown", handler, true);
       };
 
-      // 按键绑定：软键盘唤起
+      // 键盘呼出
       document.getElementById("btn_kbd").onclick = () => {
         const input = document.createElement("input");
-        input.style.position = "absolute";
-        input.style.opacity = "0";
+        input.style.cssText = "position:absolute;opacity:0;top:0;";
         document.body.appendChild(input);
         input.focus();
-        input.addEventListener("keydown", (e) => {
-          if (emulator) {
-            // 将手机输入的按键编码传递给虚拟机
-            emulator.keyboard_send_scancodes([e.keyCode]);
-          }
-        });
+        input.onkeydown = (e) => {
+          if (emulator) emulator.keyboard_send_scancodes([e.keyCode]);
+        };
       };
     }
 
