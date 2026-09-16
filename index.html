@@ -18,17 +18,25 @@
       min-height: 100vh;
     }
     h1 { margin: 5px 0 10px 0; font-size: 1.3rem; color: #4da6ff; text-align: center; }
+    
+    /* v86 引擎会自动在此容器内生成 canvas 和用于显示的 div */
     #screen_container {
+      width: 1024px;
+      height: 768px;
+      max-width: 100%;
       box-shadow: 0 10px 30px rgba(0,0,0,0.8);
       border: 2px solid #333;
       border-radius: 6px;
       overflow: hidden;
       background: #000;
-      line-height: 0;
       margin-bottom: 12px;
-      max-width: 100%;
+      position: relative;
     }
-    canvas { display: block; max-width: 100%; height: auto; }
+    #screen_container canvas {
+      display: block;
+      width: 100% !important;
+      height: auto !important;
+    }
     
     #log_container {
       width: 100%;
@@ -50,7 +58,8 @@
   <h1>KolibriOS 网页运行版</h1>
 
   <div id="screen_container">
-    <canvas id="screen"></canvas>
+    <div style="white-space: pre; font-family: monospace; line-height: 14px; font-size: 13px; color: #aaa;"></div>
+    <canvas></canvas>
   </div>
 
   <div id="log_container">
@@ -96,30 +105,14 @@
       const ready = await checkFiles();
       if (!ready) return;
 
-      log("正在通过 ESM 加载 v86 引擎...", "info");
+      log("正在加载 v86 模块...", "info");
 
       let V86Starter;
-      
-      // 1. 尝试从 jsDelivr 动态 import 模块
       try {
         const mod = await import("https://cdn.jsdelivr.net/npm/v86@0.4.0/+esm");
         V86Starter = mod.V86Starter || mod.default?.V86Starter || mod.default;
       } catch (e) {
-        log("节点 1 加载失败，尝试备用 ES 节点...", "info");
-      }
-
-      // 2. 备用 esm.sh 节点
-      if (!V86Starter) {
-        try {
-          const mod = await import("https://esm.sh/v86");
-          V86Starter = mod.V86Starter || mod.default?.V86Starter || mod.default;
-        } catch (e) {
-          log("节点 2 加载失败...", "info");
-        }
-      }
-
-      if (!V86Starter) {
-        log("无法加载 V86Starter 模块，请检查网络是否能访问 CDN 服务。", "error");
+        log("CDN 模块载入失败，请检查网络联通性", "error");
         return;
       }
 
@@ -138,6 +131,15 @@
           autostart: true,
         });
 
+        // 监听虚拟机事件，捕获启动过程
+        emulator.add_listener("emulator-ready", function() {
+          log("WASM 核心就绪，处理器已启动！", "ok");
+        });
+
+        emulator.add_listener("screen-set-mode", function(is_graphical) {
+          log(`显示模式切换: ${is_graphical ? "图形模式 (VGA)" : "文本模式 (BIOS)"}`, "info");
+        });
+
         log("KolibriOS 启动命令已发送！", "ok");
       } catch (err) {
         log("虚拟机启动崩溃: " + err.message, "error");
@@ -149,3 +151,4 @@
 
 </body>
 </html>
+
