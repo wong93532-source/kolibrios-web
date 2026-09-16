@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>KolibriOS Web Edition</title>
   <style>
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; touch-action: manipulation; }
     body {
       margin: 0;
-      padding: 15px;
+      padding: 10px;
       background-color: #121212;
       color: #e0e0e0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
@@ -16,8 +16,9 @@
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
+      user-select: none;
     }
-    h1 { margin: 5px 0 10px 0; font-size: 1.3rem; color: #4da6ff; text-align: center; }
+    h1 { margin: 2px 0 8px 0; font-size: 1.1rem; color: #4da6ff; text-align: center; }
     
     #screen_container {
       width: 100%;
@@ -28,12 +29,37 @@
       border-radius: 6px;
       overflow: hidden;
       background: #000;
-      margin-bottom: 12px;
       position: relative;
     }
     #screen_container canvas, #screen_container div {
       width: 100% !important;
       height: 100% !important;
+    }
+
+    /* 手机端触控辅助控制板 */
+    #touch_controls {
+      width: 100%;
+      max-width: 800px;
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .touch-btn {
+      background: #222;
+      color: #00aaff;
+      border: 1px solid #444;
+      padding: 12px 0;
+      font-size: 0.9rem;
+      font-weight: bold;
+      border-radius: 6px;
+      text-align: center;
+      cursor: pointer;
+      active-background: #00aaff;
+    }
+    .touch-btn:active {
+      background: #00aaff;
+      color: #fff;
     }
     
     #log_container {
@@ -42,10 +68,11 @@
       background: #090909;
       border: 1px solid #222;
       border-radius: 6px;
-      padding: 10px;
+      padding: 8px;
+      margin-top: 10px;
     }
-    #log_title { font-size: 0.75rem; color: #666; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
-    #log_output { height: 120px; overflow-y: auto; font-size: 0.75rem; color: #00ff66; white-space: pre-wrap; word-break: break-all; }
+    #log_title { font-size: 0.7rem; color: #666; margin-bottom: 4px; text-transform: uppercase; }
+    #log_output { height: 70px; overflow-y: auto; font-size: 0.7rem; color: #00ff66; white-space: pre-wrap; word-break: break-all; }
     .log-err { color: #ff5555; }
     .log-info { color: #00aaff; }
     .log-ok { color: #00ff66; }
@@ -53,11 +80,19 @@
 </head>
 <body>
 
-  <h1>KolibriOS 网页运行版</h1>
+  <h1>KolibriOS 网页触控增强版</h1>
 
   <div id="screen_container">
     <div style="white-space: pre; font-family: monospace; line-height: 14px; font-size: 13px; color: #aaa;"></div>
     <canvas></canvas>
+  </div>
+
+  <!-- 手机辅助按键区 -->
+  <div id="touch_controls">
+    <button class="touch-btn" id="btn_click">🖱️ 点击(左键)</button>
+    <button class="touch-btn" id="btn_dblclick">⚡ 双击打开</button>
+    <button class="touch-btn" id="btn_rclick">🔘 鼠标右键</button>
+    <button class="touch-btn" id="btn_kbd">⌨️ 呼出键盘</button>
   </div>
 
   <div id="log_container">
@@ -67,6 +102,7 @@
 
   <script type="module">
     const logOutput = document.getElementById("log_output");
+    let emulator = null;
 
     function log(msg, type = "normal") {
       const time = new Date().toLocaleTimeString();
@@ -79,51 +115,24 @@
       logOutput.scrollTop = logOutput.scrollHeight;
     }
 
-    async function checkFiles() {
-      const files = ["./seabios.bin", "./vgabios.bin", "./kolibri.img"];
-      log("开始校验本地 OS 镜像文件...", "info");
-
-      for (const file of files) {
-        try {
-          const res = await fetch(file, { method: "HEAD" });
-          if (!res.ok) {
-            log(`缺失文件: ${file} (HTTP ${res.status})`, "error");
-            return false;
-          }
-        } catch (e) {
-          log(`无法读取文件: ${file}`, "error");
-          return false;
-        }
-      }
-      log("镜像文件校验成功！", "ok");
-      return true;
-    }
-
     async function init() {
-      const ready = await checkFiles();
-      if (!ready) return;
-
-      log("正在载入 v86 WebAssembly 引擎...", "info");
+      log("正在载入 v86 引擎...", "info");
 
       let V86Starter;
       try {
         const mod = await import("https://cdn.jsdelivr.net/npm/v86@0.4.0/+esm");
         V86Starter = mod.V86Starter || mod.default?.V86Starter || mod.default;
       } catch (e) {
-        log("CDN 引擎导入失败，请检查网络", "error");
+        log("CDN 引擎导入失败", "error");
         return;
       }
 
-      log("v86 模块解析成功，初始化虚拟机...", "ok");
-
       try {
-        const emulator = new V86Starter({
-          // 强制将 wasm_path 指向与 js 严格配套的 CDN 构建版本
+        emulator = new V86Starter({
           wasm_path: "https://cdn.jsdelivr.net/npm/v86@0.4.0/build/v86.wasm",
           bios: { url: "./seabios.bin" },
           vga_bios: { url: "./vgabios.bin" },
           fda: { url: "./kolibri.img" },
-          
           memory_size: 64 * 1024 * 1024,
           vga_memory_size: 8 * 1024 * 1024,
           screen_container: document.getElementById("screen_container"),
@@ -131,16 +140,62 @@
         });
 
         emulator.add_listener("emulator-ready", function() {
-          log("WASM 虚拟机核心就绪，开始引导 KolibriOS...", "ok");
-        });
-
-        emulator.add_listener("screen-set-mode", function(is_graphical) {
-          log(`显示模式切换: ${is_graphical ? "图形界面 (800x600)" : "文本界面 (BIOS)"}`, "info");
+          log("WASM 核心就绪，触控增强已激活！", "ok");
+          bindTouchEvents();
         });
 
       } catch (err) {
         log("虚拟机初始化失败: " + err.message, "error");
       }
+    }
+
+    // 将屏幕触摸事件准确映射为鼠标指针和按键操作
+    function bindTouchEvents() {
+      const screen = document.getElementById("screen_container");
+
+      // 手指轻触屏幕 = 移动鼠标并点击
+      screen.addEventListener("touchend", function(e) {
+        if (!emulator) return;
+        
+        // 阻止默认滚动行为
+        e.preventDefault();
+
+        // 模拟单击左键
+        emulator.mouse_send_click(0);
+      }, { passive: false });
+
+      // 按键绑定：单击左键
+      document.getElementById("btn_click").onclick = () => {
+        if (emulator) emulator.mouse_send_click(0);
+      };
+
+      // 按键绑定：双击打开应用/图标
+      document.getElementById("btn_dblclick").onclick = () => {
+        if (emulator) {
+          emulator.mouse_send_click(0);
+          setTimeout(() => emulator.mouse_send_click(0), 100);
+        }
+      };
+
+      // 按键绑定：鼠标右键
+      document.getElementById("btn_rclick").onclick = () => {
+        if (emulator) emulator.mouse_send_click(2);
+      };
+
+      // 按键绑定：软键盘唤起
+      document.getElementById("btn_kbd").onclick = () => {
+        const input = document.createElement("input");
+        input.style.position = "absolute";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.focus();
+        input.addEventListener("keydown", (e) => {
+          if (emulator) {
+            // 将手机输入的按键编码传递给虚拟机
+            emulator.keyboard_send_scancodes([e.keyCode]);
+          }
+        });
+      };
     }
 
     window.addEventListener("DOMContentLoaded", init);
