@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>KolibriOS 实时指针跟随版</title>
+  <title>KolibriOS 触控修复最终版</title>
   <style>
     * { box-sizing: border-box; touch-action: none; }
     body {
@@ -80,7 +80,7 @@
 </head>
 <body>
 
-  <h1>KolibriOS 指针跟随 + 双击打开版</h1>
+  <h1>KolibriOS 触控修复最终版</h1>
 
   <div id="screen_container">
     <div style="white-space: pre; font-family: monospace; line-height: 14px; font-size: 13px; color: #aaa;"></div>
@@ -137,8 +137,8 @@
         });
 
         emulator.add_listener("emulator-ready", function() {
-          log("WASM 核心就绪，实时指针跟随已激活！", "ok");
-          bindPointerTracking();
+          log("WASM 核心就绪，PS/2 物理偏移算法已生效！", "ok");
+          setupAbsoluteTouch();
         });
 
       } catch (err) {
@@ -146,66 +146,67 @@
       }
     }
 
-    // 绑定触摸跟随与双击检测
-    function bindPointerTracking() {
+    // 将屏幕触摸绝对位置转换为 PS/2 物理偏移量算法
+    function setupAbsoluteTouch() {
       const container = document.getElementById("screen_container");
+      
+      // 当前系统鼠标在虚拟 800x600 画面中的估算物理坐标
+      let currentVirtX = 400;
+      let currentVirtY = 300;
       let lastTapTime = 0;
 
-      // 1. 获取像素转换坐标
-      function getCanvasCoords(e) {
+      function handleTouch(e, isClick = false) {
+        if (!emulator) return;
+
         const rect = container.getBoundingClientRect();
-        const x = Math.round(((e.clientX - rect.left) / rect.width) * 800);
-        const y = Math.round(((e.clientY - rect.top) / rect.height) * 600);
-        return { x, y };
+        const touch = e.touches ? e.touches[0] : e;
+        if (!touch && !isClick) return;
+
+        // 计算出手指在 800x600 坐标系下的目标绝对位置
+        const targetX = Math.max(0, Math.min(800, Math.round(((touch.clientX - rect.left) / rect.width) * 800)));
+        const targetY = Math.max(0, Math.min(600, Math.round(((touch.clientY - rect.top) / rect.height) * 600)));
+
+        // 计算差值 Delta (模拟真实 PS/2 鼠标物理滚动量)
+        const dx = targetX - currentVirtX;
+        const dy = targetY - currentVirtY;
+
+        if (dx !== 0 || dy !== 0) {
+          // 通过底层物理卡接口投递增量
+          emulator.mouse_move(dx, dy);
+          currentVirtX = targetX;
+          currentVirtY = targetY;
+        }
+
+        // 处理点击逻辑
+        if (isClick) {
+          const now = Date.now();
+          const interval = now - lastTapTime;
+
+          if (interval < 300 && interval > 0) {
+            log("触发双击打开", "info");
+            emulator.mouse_send_click(0);
+            setTimeout(() => emulator.mouse_send_click(0), 60);
+            lastTapTime = 0;
+          } else {
+            emulator.mouse_send_click(0);
+            lastTapTime = now;
+          }
+        }
       }
 
-      // 2. 手指滑动/移动时：强行让鼠标指针跟着手指实时走
-      container.addEventListener("pointermove", function(e) {
-        if (!emulator) return;
-        const coords = getCanvasCoords(e);
-        emulator.mouse_move(coords.x, coords.y);
-      });
-
-      // 3. 手指点击屏幕时：判断是否为“双击”
-      container.addEventListener("pointerdown", function(e) {
-        if (!emulator) return;
+      // 手指滑动 -> 实时拉动鼠标指针
+      container.addEventListener("touchmove", (e) => {
         e.preventDefault();
-
-        const coords = getCanvasCoords(e);
-        // 按下时先更新指针位置
-        emulator.mouse_move(coords.x, coords.y);
-
-        const currentTime = new Date().getTime();
-        const tapInterval = currentTime - lastTapTime;
-
-        // 如果两次点击的时间间隔小于 300 毫秒，判定为双击
-        if (tapInterval < 300 && tapInterval > 0) {
-          log("检测到双击，正在打开程序...", "info");
-          // 触发连续两次点击打开图标
-          emulator.mouse_send_click(0);
-          setTimeout(() => emulator.mouse_send_click(0), 50);
-          lastTapTime = 0; // 重置
-        } else {
-          // 单击：只做选中/定位，不打开
-          emulator.mouse_send_click(0);
-          lastTapTime = currentTime;
-        }
+        handleTouch(e, false);
       }, { passive: false });
 
-      // 4. 右键按钮辅助
-      document.getElementById("btn_rclick").onclick = () => {
-        log("请点击屏幕任意位置唤出右键菜单", "info");
-        const rHandler = (e) => {
-          e.preventDefault();
-          const coords = getCanvasCoords(e);
-          emulator.mouse_move(coords.x, coords.y);
-          emulator.mouse_send_click(2);
-          container.removeEventListener("pointerdown", rHandler, true);
-        };
-        container.addEventListener("pointerdown", rHandler, true);
-      };
+      // 手指点击 -> 先更新指针位置，再发送点击
+      container.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        handleTouch(e, true);
+      }, { passive: false });
 
-      // 5. 键盘呼出
+      // 键盘呼出
       document.getElementById("btn_kbd").onclick = () => {
         const input = document.createElement("input");
         input.style.cssText = "position:absolute;opacity:0;top:0;";
@@ -214,6 +215,18 @@
         input.onkeydown = (e) => {
           if (emulator) emulator.keyboard_send_scancodes([e.keyCode]);
         };
+      };
+
+      // 右键按钮
+      document.getElementById("btn_rclick").onclick = () => {
+        log("请点击屏幕位置唤出右键菜单", "info");
+        const rHandler = (e) => {
+          e.preventDefault();
+          handleTouch(e, false);
+          emulator.mouse_send_click(2);
+          container.removeEventListener("touchstart", rHandler, true);
+        };
+        container.addEventListener("touchstart", rHandler, true);
       };
     }
 
