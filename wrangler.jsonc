@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kolibrios-web",
+  "compatibility_date": "2026-09-15",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": ".",
+    // 忽略 .git 和临时文件，避免暴露或额外占用上传资源
+    "exclude": [
+      ".git/**",
+      ".github/**",
+      ".wrangler/**",
+      "README.md"
+    ]
+  }
+}
