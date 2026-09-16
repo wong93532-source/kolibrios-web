@@ -5,94 +5,121 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KolibriOS Web Edition</title>
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
-      padding: 0;
-      background-color: #0d1117;
-      color: #c9d1d9;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 15px;
+      background-color: #121212;
+      color: #e0e0e0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
       min-height: 100vh;
     }
-    .container {
-      text-align: center;
-      padding: 20px;
-    }
-    h1 {
-      margin-top: 0;
-      margin-bottom: 8px;
-      font-size: 1.8rem;
-      color: #58a6ff;
-    }
-    p {
-      margin-top: 0;
-      margin-bottom: 20px;
-      font-size: 0.95rem;
-      color: #8b949e;
-    }
+    h1 { margin: 5px 0; font-size: 1.4rem; color: #4da6ff; }
     #screen_container {
-      box-shadow: 0 12px 40px rgba(0,0,0,0.8);
-      border: 2px solid #30363d;
-      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      border: 2px solid #333;
+      border-radius: 6px;
       overflow: hidden;
       background: #000;
-      display: inline-block;
       line-height: 0;
+      margin-bottom: 15px;
     }
-    canvas {
-      display: block;
+    canvas { display: block; }
+    
+    /* 日志面板样式 */
+    #log_container {
+      width: 100%;
+      max-width: 640px;
+      background: #090909;
+      border: 1px solid #222;
+      border-radius: 6px;
+      padding: 10px;
     }
-    .status {
-      margin-top: 15px;
-      font-size: 0.85rem;
-      color: #7ee787;
+    #log_title {
+      font-size: 0.8rem;
+      color: #666;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
     }
+    #log_output {
+      height: 120px;
+      overflow-y: auto;
+      font-size: 0.75rem;
+      color: #00ff66;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .log-err { color: #ff5555; }
+    .log-info { color: #00aaff; }
   </style>
 </head>
 <body>
 
-  <div class="container">
-    <h1>KolibriOS 网页版</h1>
-    <p>完全由汇编语言编写的微型操作系统 (x86 WebAssembly 模拟器)</p>
+  <h1>KolibriOS 网页运行版</h1>
 
-    <div id="screen_container">
-      <canvas id="screen"></canvas>
-    </div>
-
-    <div id="status" class="status">正在初始化模拟器...</div>
+  <!-- 模拟器屏幕容器 -->
+  <div id="screen_container">
+    <canvas id="screen"></canvas>
   </div>
 
-  <!-- 从 CDN 自动加载 v86 引擎 -->
+  <!-- 日志输出控制台 -->
+  <div id="log_container">
+    <div id="log_title">系统运行日志 (Runtime Log)</div>
+    <div id="log_output"></div>
+  </div>
+
   <script src="https://copy.sh/v86/build/libv86.js"></script>
   <script>
+    const logOutput = document.getElementById("log_output");
+
+    function log(msg, type = "normal") {
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement("div");
+      if (type === "error") div.className = "log-err";
+      if (type === "info") div.className = "log-info";
+      div.textContent = `[${time}] ${msg}`;
+      logOutput.appendChild(div);
+      logOutput.scrollTop = logOutput.scrollHeight;
+    }
+
     window.onload = function() {
-      var statusEl = document.getElementById("status");
+      log("开始初始化 v86 模拟器...", "info");
+
+      // 预先拦截 fetch 检测镜像是否存在
+      fetch("./kolibri.img", { method: "HEAD" })
+        .then(res => {
+          if (!res.ok) {
+            log(`镜像请求失败！HTTP 状态码: ${res.status} (${res.statusText})`, "error");
+            log("请检查仓库根目录中是否存在 kolibri.img 文件，且文件名全为小写。", "error");
+          } else {
+            log("成功找到 kolibri.img 镜像文件，正在启动 BIOS 载入...", "info");
+          }
+        })
+        .catch(err => log("网络错误或跨域拦截: " + err.message, "error"));
 
       try {
         var emulator = new V86Starter({
           wasm_path: "https://copy.sh/v86/build/v86.wasm",
-          memory_size: 64 * 1024 * 1024,      // 64MB 内存
-          vga_memory_size: 8 * 1024 * 1024,  // 8MB 显存
+          memory_size: 64 * 1024 * 1024,
+          vga_memory_size: 8 * 1024 * 1024,
           screen_container: document.getElementById("screen_container"),
           bios: { url: "https://copy.sh/v86/bios/seabios.bin" },
           vga_bios: { url: "https://copy.sh/v86/bios/vgabios.bin" },
-          fda: { url: "./kolibri.img" },      // 挂载同目录下的镜像文件
+          fda: { url: "./kolibri.img" },
           autostart: true,
         });
 
-        emulator.add_listener("emulator-ready", function() {
-          statusEl.innerText = "系统运行中 (点击屏幕开始交互)";
+        // 监听虚拟串口输出日志
+        emulator.add_listener("serial0-output-char", function(char) {
+          // 可选：将虚拟机内部输出转存至日志面板
         });
+
       } catch (e) {
-        statusEl.style.color = "#f85149";
-        statusEl.innerText = "加载失败，请检查镜像文件是否存在。";
-        console.error(e);
+        log("模拟器崩溃: " + e.message, "error");
       }
     };
   </script>
