@@ -143,21 +143,22 @@
                 bios: { url: "seabios.bin" },
                 vga_bios: { url: "vgabios.bin" },
 
-                // 使用 jsDelivr CDN 直连你的 GitHub Release ISO 镜像
+                // 挂载你 Release 里的 ISO 光盘镜像
                 cdrom: {
-                    url: "https://github.com/wong93532-source/kolibrios-web/releases/download/v1.0/win98.iso"
+                    url: "https://cdn.jsdelivr.net/gh/wong93532-source/kolibrios-web@v1.0/win98.iso"
                 },
 
+                // 优先从光盘引导 (0x3: CD-ROM, 0x1: Floppy, 0x2: HDD)
                 boot_order: 0x312,
+
                 autostart: true
             });
 
             emulator.add_listener("emulator-ready", function() {
                 log("WASM 核心就绪，PS/2 物理偏移算法已生效！", "log-green");
-                log("正在从 Release 加载 win98.iso (164MB 需要一些时间下载)...", "log-yellow");
+                log("正在加载 win98.iso (164MB 需要一些时间下载)...", "log-yellow");
             });
 
-            // 保持原有的右键按钮与键盘逻辑
             document.getElementById("btn-right-click").addEventListener("click", function() {
                 log("已发送鼠标右键指令", "log-blue");
             });
