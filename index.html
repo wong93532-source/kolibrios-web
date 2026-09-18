@@ -135,17 +135,17 @@
             log("正在载入 v86 引擎...", "log-blue");
 
             var emulator = new V86Starter({
-                wasm_path: "https://copy.sh/v86/build/v86.wasm",
+                wasm_path: "v86.wasm",
                 screen_container: document.getElementById("screen"),
                 memory_size: 128 * 1024 * 1024,
                 vga_memory_size: 8 * 1024 * 1024,
 
-                bios: { url: "https://copy.sh/v86/bios/seabios.bin" },
-                vga_bios: { url: "https://copy.sh/v86/bios/vgabios.bin" },
+                bios: { url: "seabios.bin" },
+                vga_bios: { url: "vgabios.bin" },
 
                 // 使用 jsDelivr CDN 直连你的 GitHub Release ISO 镜像
                 cdrom: {
-                    url: "https://cdn.jsdelivr.net/gh/wong93532-source/kolibrios-web@v1.0/win98.iso"
+                    url: "https://github.com/wong93532-source/kolibrios-web/releases/download/v1.0/win98.iso"
                 },
 
                 boot_order: 0x312,
