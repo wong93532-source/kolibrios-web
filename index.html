@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Win98 ISO 网页引导测试</title>
+    <title>Windows 98 ISO 测试</title>
     <style>
         body {
-            background-color: #1e1e1e;
+            background-color: #008080;
             color: #fff;
             font-family: sans-serif;
             display: flex;
@@ -17,31 +17,33 @@
             margin: 0;
         }
         #screen-container {
-            border: 2px solid #555;
+            border: 3px solid #fff;
             background: #000;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
         }
         #screen {
             white-space: pre;
             font-family: monospace;
         }
         .status {
-            margin-top: 12px;
+            margin-top: 15px;
             font-size: 14px;
-            color: #4af626;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 8px 16px;
+            border-radius: 4px;
         }
     </style>
     <script src="https://copy.sh/v86/build/libv86.js"></script>
 </head>
 <body>
 
-    <h2>v86 ISO 光盘直接引导测试</h2>
+    <h2>Win98 ISO 网页运行测试</h2>
 
     <div id="screen-container">
         <div id="screen"></div>
     </div>
 
-    <div class="status" id="status">准备载入 ISO...</div>
+    <div class="status" id="status">正在准备从 Release 加载 164MB ISO...</div>
 
     <script>
         window.onload = function() {
@@ -56,19 +58,21 @@
                 bios: { url: "https://copy.sh/v86/bios/seabios.bin" },
                 vga_bios: { url: "https://copy.sh/v86/bios/vgabios.bin" },
 
-                // 核心变化：将 ISO 挂载到 cdrom 接口
+                // 填入你发布的 ISO 链接 (推荐优先使用 jsDelivr CDN 加速/跨域解封)
                 cdrom: {
-                    url: "win98.iso"
+                    url: "https://cdn.jsdelivr.net/gh/wong93532-source/kolibrios-web@v1.0/win98.iso"
+                    // 备用：直连 GitHub Release (如果 CDN 没生效可以换回下面这行)
+                    // url: "https://github.com/wong93532-source/kolibrios-web/releases/download/v1.0/win98.iso"
                 },
 
-                // 显式指定优先从光盘启动 (1: 软盘, 2: 硬盘, 3: 光盘)
+                // 强制优先光盘启动
                 boot_order: 0x312,
 
                 autostart: true
             });
 
             emulator.add_listener("emulator-ready", function() {
-                statusText.innerText = "虚拟机已就绪，正在从 ISO 光盘引导...";
+                statusText.innerText = "虚拟机就绪！镜像下载中（164MB 需要点时间），请稍候...";
             });
         };
     </script>
