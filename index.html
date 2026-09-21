@@ -1,172 +1,237 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Windows 98 触控修复最终版</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        body {
-            background-color: #121212;
-            color: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-            padding: 15px;
-        }
-        .header-title {
-            font-size: 20px;
-            font-weight: bold;
-            color: #4da6ff;
-            margin-bottom: 12px;
-            text-align: center;
-        }
-        #screen-container {
-            width: 100%;
-            max-width: 640px;
-            aspect-ratio: 4 / 3;
-            background-color: #000000;
-            border: 1px solid #333333;
-            border-radius: 6px;
-            overflow: hidden;
-            position: relative;
-        }
-        #screen {
-            width: 100%;
-            height: 100%;
-            white-space: pre;
-            font-family: monospace;
-        }
-        .controls-grid {
-            width: 100%;
-            max-width: 640px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 12px;
-        }
-        .btn {
-            background-color: #242424;
-            color: #e0e0e0;
-            border: 1px solid #3d3d3d;
-            padding: 12px 0;
-            border-radius: 6px;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            cursor: pointer;
-            user-select: none;
-        }
-        .btn:active {
-            background-color: #333333;
-        }
-        .log-container {
-            width: 100%;
-            max-width: 640px;
-            background-color: #1a1a1a;
-            border: 1px solid #2a2a2a;
-            border-radius: 6px;
-            padding: 12px;
-            margin-top: 15px;
-        }
-        .log-title {
-            font-size: 12px;
-            color: #888888;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .log-content {
-            font-family: monospace;
-            font-size: 12px;
-            line-height: 1.5;
-        }
-        .log-item {
-            margin-bottom: 4px;
-        }
-        .log-blue { color: #4da6ff; }
-        .log-green { color: #00e676; }
-        .log-yellow { color: #ffeb3b; }
-    </style>
-    <script src="https://copy.sh/v86/build/libv86.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>KolibriOS 触控修复最终版</title>
+  <style>
+    * { box-sizing: border-box; touch-action: none; }
+    body {
+      margin: 0;
+      padding: 10px;
+      background-color: #121212;
+      color: #e0e0e0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      user-select: none;
+    }
+    h1 { margin: 2px 0 8px 0; font-size: 1.1rem; color: #4da6ff; text-align: center; }
+    
+    #screen_container {
+      width: 100%;
+      max-width: 800px;
+      aspect-ratio: 4 / 3;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      border: 2px solid #333;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #000;
+      position: relative;
+    }
+    #screen_container canvas, #screen_container div {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    #touch_controls {
+      width: 100%;
+      max-width: 800px;
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      touch-action: auto;
+    }
+    .touch-btn {
+      background: #222;
+      color: #00aaff;
+      border: 1px solid #444;
+      padding: 12px 0;
+      font-size: 0.9rem;
+      font-weight: bold;
+      border-radius: 6px;
+      text-align: center;
+      cursor: pointer;
+    }
+    .touch-btn:active {
+      background: #00aaff;
+      color: #fff;
+    }
+    
+    #log_container {
+      width: 100%;
+      max-width: 800px;
+      background: #090909;
+      border: 1px solid #222;
+      border-radius: 6px;
+      padding: 8px;
+      margin-top: 10px;
+      touch-action: auto;
+    }
+    #log_title { font-size: 0.7rem; color: #666; margin-bottom: 4px; text-transform: uppercase; }
+    #log_output { height: 60px; overflow-y: auto; font-size: 0.7rem; color: #00ff66; white-space: pre-wrap; word-break: break-all; }
+    .log-err { color: #ff5555; }
+    .log-info { color: #00aaff; }
+    .log-ok { color: #00ff66; }
+  </style>
 </head>
 <body>
 
-    <div class="header-title">Windows 98 触控修复最终版</div>
+  <h1>KolibriOS 触控修复最终版</h1>
 
-    <div id="screen-container">
-        <div id="screen"></div>
-    </div>
+  <div id="screen_container">
+    <div style="white-space: pre; font-family: monospace; line-height: 14px; font-size: 13px; color: #aaa;"></div>
+    <canvas></canvas>
+  </div>
 
-    <div class="controls-grid">
-        <button class="btn" id="btn-right-click">
-            <span>🔘</span> 鼠标右键
-        </button>
-        <button class="btn" id="btn-keyboard">
-            <span>⌨️</span> 呼出键盘
-        </button>
-    </div>
+  <div id="touch_controls">
+    <button class="touch-btn" id="btn_rclick">🔘 鼠标右键</button>
+    <button class="touch-btn" id="btn_kbd">⌨️ 呼出键盘</button>
+  </div>
 
-    <div class="log-container">
-        <div class="log-title">系统运行日志 (RUNTIME LOG)</div>
-        <div class="log-content" id="log-box"></div>
-    </div>
+  <div id="log_container">
+    <div id="log_title">系统运行日志 (Runtime Log)</div>
+    <div id="log_output"></div>
+  </div>
 
-    <script>
-        function log(msg, colorClass = "log-blue") {
-            var logBox = document.getElementById("log-box");
-            var time = new Date().toTimeString().split(' ')[0];
-            var item = document.createElement("div");
-            item.className = "log-item";
-            item.innerHTML = `<span class="${colorClass}">[${time}] ${msg}</span>`;
-            logBox.appendChild(item);
-            logBox.scrollTop = logBox.scrollHeight;
+  <script type="module">
+    const logOutput = document.getElementById("log_output");
+    let emulator = null;
+
+    function log(msg, type = "normal") {
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement("div");
+      if (type === "error") div.className = "log-err";
+      if (type === "info") div.className = "log-info";
+      if (type === "ok") div.className = "log-ok";
+      div.textContent = `[${time}] ${msg}`;
+      logOutput.appendChild(div);
+      logOutput.scrollTop = logOutput.scrollHeight;
+    }
+
+    async function init() {
+      log("正在载入 v86 引擎...", "info");
+
+      let V86Starter;
+      try {
+        const mod = await import("https://cdn.jsdelivr.net/npm/v86@0.4.0/+esm");
+        V86Starter = mod.V86Starter || mod.default?.V86Starter || mod.default;
+      } catch (e) {
+        log("CDN 引擎导入失败", "error");
+        return;
+      }
+
+      try {
+        emulator = new V86Starter({
+          wasm_path: "https://cdn.jsdelivr.net/npm/v86@0.4.0/build/v86.wasm",
+          bios: { url: "./seabios.bin" },
+          vga_bios: { url: "./vgabios.bin" },
+          fda: { url: "./kolibri.img" },
+          memory_size: 64 * 1024 * 1024,
+          vga_memory_size: 8 * 1024 * 1024,
+          screen_container: document.getElementById("screen_container"),
+          autostart: true,
+        });
+
+        emulator.add_listener("emulator-ready", function() {
+          log("WASM 核心就绪，PS/2 物理偏移算法已生效！", "ok");
+          setupAbsoluteTouch();
+        });
+
+      } catch (err) {
+        log("虚拟机初始化失败: " + err.message, "error");
+      }
+    }
+
+    // 将屏幕触摸绝对位置转换为 PS/2 物理偏移量算法
+    function setupAbsoluteTouch() {
+      const container = document.getElementById("screen_container");
+      
+      // 当前系统鼠标在虚拟 800x600 画面中的估算物理坐标
+      let currentVirtX = 400;
+      let currentVirtY = 300;
+      let lastTapTime = 0;
+
+      function handleTouch(e, isClick = false) {
+        if (!emulator) return;
+
+        const rect = container.getBoundingClientRect();
+        const touch = e.touches ? e.touches[0] : e;
+        if (!touch && !isClick) return;
+
+        // 计算出手指在 800x600 坐标系下的目标绝对位置
+        const targetX = Math.max(0, Math.min(800, Math.round(((touch.clientX - rect.left) / rect.width) * 800)));
+        const targetY = Math.max(0, Math.min(600, Math.round(((touch.clientY - rect.top) / rect.height) * 600)));
+
+        // 计算差值 Delta (模拟真实 PS/2 鼠标物理滚动量)
+        const dx = targetX - currentVirtX;
+        const dy = targetY - currentVirtY;
+
+        if (dx !== 0 || dy !== 0) {
+          // 通过底层物理卡接口投递增量
+          emulator.mouse_move(dx, dy);
+          currentVirtX = targetX;
+          currentVirtY = targetY;
         }
 
-        window.onload = function() {
-            log("正在载入 v86 引擎...", "log-blue");
+        // 处理点击逻辑
+        if (isClick) {
+          const now = Date.now();
+          const interval = now - lastTapTime;
 
-            var emulator = new V86Starter({
-                wasm_path: "v86.wasm",
-                screen_container: document.getElementById("screen"),
-                memory_size: 128 * 1024 * 1024,
-                vga_memory_size: 8 * 1024 * 1024,
+          if (interval < 300 && interval > 0) {
+            log("触发双击打开", "info");
+            emulator.mouse_send_click(0);
+            setTimeout(() => emulator.mouse_send_click(0), 60);
+            lastTapTime = 0;
+          } else {
+            emulator.mouse_send_click(0);
+            lastTapTime = now;
+          }
+        }
+      }
 
-                bios: { url: "seabios.bin" },
-                vga_bios: { url: "vgabios.bin" },
+      // 手指滑动 -> 实时拉动鼠标指针
+      container.addEventListener("touchmove", (e) => {
+        e.preventDefault();
+        handleTouch(e, false);
+      }, { passive: false });
 
-                // 挂载你 Release 里的 ISO 光盘镜像
-                cdrom: {
-                    url: "https://github.com/wong93532-source/kolibrios-web/releases/download/v1.0/win98.iso"
-                },
+      // 手指点击 -> 先更新指针位置，再发送点击
+      container.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        handleTouch(e, true);
+      }, { passive: false });
 
-                // 优先从光盘引导 (0x3: CD-ROM, 0x1: Floppy, 0x2: HDD)
-                boot_order: 0x312,
-
-                autostart: true
-            });
-
-            emulator.add_listener("emulator-ready", function() {
-                log("WASM 核心就绪，PS/2 物理偏移算法已生效！", "log-green");
-                log("正在加载 win98.iso (164MB 需要一些时间下载)...", "log-yellow");
-            });
-
-            document.getElementById("btn-right-click").addEventListener("click", function() {
-                log("已发送鼠标右键指令", "log-blue");
-            });
-
-            document.getElementById("btn-keyboard").addEventListener("click", function() {
-                log("已尝试呼出软键盘", "log-blue");
-            });
+      // 键盘呼出
+      document.getElementById("btn_kbd").onclick = () => {
+        const input = document.createElement("input");
+        input.style.cssText = "position:absolute;opacity:0;top:0;";
+        document.body.appendChild(input);
+        input.focus();
+        input.onkeydown = (e) => {
+          if (emulator) emulator.keyboard_send_scancodes([e.keyCode]);
         };
-    </script>
+      };
+
+      // 右键按钮
+      document.getElementById("btn_rclick").onclick = () => {
+        log("请点击屏幕位置唤出右键菜单", "info");
+        const rHandler = (e) => {
+          e.preventDefault();
+          handleTouch(e, false);
+          emulator.mouse_send_click(2);
+          container.removeEventListener("touchstart", rHandler, true);
+        };
+        container.addEventListener("touchstart", rHandler, true);
+      };
+    }
+
+    window.addEventListener("DOMContentLoaded", init);
+  </script>
+
 </body>
 </html>
